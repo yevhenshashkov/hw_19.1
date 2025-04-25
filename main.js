@@ -1,39 +1,98 @@
-const weatherContainer = document.querySelector("#weather");
-document.querySelector("#btn").addEventListener("click", () => {
-    getWidget();
+const API_POSTS = "https://jsonplaceholder.typicode.com/posts";
+const API_COMMENTS = "https://jsonplaceholder.typicode.com/posts";
+
+const postList = document.querySelector("#post-list");
+const postForm = document.querySelector("#post-form");
+const postTitle = document.querySelector("#post-title");
+const postBody = document.querySelector("#post-body");
+const successMessage = document.querySelector("#success-message");
+
+
+function loadPosts() {
+    fetch(`${API_POSTS}?_limit=10`)
+        .then(res => res.json())
+        .then(posts => {
+            posts.forEach(post => {
+                const postElement = createPostElement(post);
+                postList.appendChild(postElement);
+            });
+        })
+        .catch(err => console.log("Ошибка загрузки постов: ", err));
+}
+
+function createPostElement(post) {
+    const div = document.createElement("div");
+    div.classList.add("post");
+    div.dataset.id = post.id;
+
+    div.innerHTML = `
+    <h3>${post.title}</h3>
+    <p>${post.body}</p>
+    <button class="load-comments">Завантаження комментів</button>
+    <div class="comments"></div>
+  `;
+
+    return div;
+}
+
+postList.addEventListener("click", (e) => {
+    if (e.target.classList.contains("load-comments")) {
+        const postDiv = e.target.closest(".post");
+        const postId = postDiv.dataset.id;
+        const commentsContainer = postDiv.querySelector(".comments");
+        if (commentsContainer.childElementCount > 0)
+            return;
+
+        fetch(`${API_COMMENTS}/${postId}/comments?_limit=2`)
+            .then(res => res.json())
+            .then(comments => {
+                comments.forEach(comment => {
+                    const commentEl = document.createElement("div");
+                    commentEl.classList.add("comment");
+                    commentEl.innerHTML = `
+            <strong>${comment.name}</strong> <em>(${comment.email})</em>
+            <p>${comment.body}</p>
+          `;
+                    commentsContainer.appendChild(commentEl);
+                });
+            })
+            .catch(err => console.log("Помилка при завантаженні коментарієв: ", err));
+    }
 });
 
-function renderWidget(data) {
-    const iconCode = data.weather[0].icon;
-    const iconUrl = `https://openweathermap.org/img/wn/${iconCode}@2x.png`;
+postForm.addEventListener("submit", (e) => {
+    e.preventDefault();
 
-    const newWeather = document.createElement("div");
+    const title = postTitle.value.trim();
+    const body = postBody.value.trim();
 
-    newWeather.innerHTML = `
-        <div class="widget">
-            <p>Погода в ${data.name}</p>
-            <p class="temp">Температура воздуха: ${Math.round(data.main.temp)}°C</p>
-            <img src="${iconUrl}" alt="Погода: ${data.weather[0].description}">
-            <p>${data.weather[0].description}</p>
-            <p>Ветер: ${Math.round(data.wind.speed)} м/с</p>
-            <p>Направление ветра: ${data.wind.deg}°</p>
-            <p>Облачность: ${data.clouds.all}%</p>
-        </div>
-    `;
-    weatherContainer.innerHTML = "";
-    weatherContainer.appendChild(newWeather);
-}
+    if (!title || !body) return;
 
-function getWidget() {
-    fetch("https://api.openweathermap.org/data/2.5/weather?q=Kremenchuk&appid=f595e025a1e0ea8de29ce04274b14347&units=metric&lang=ru")
-        .then((res) => res.json())
-        .then((data) => {
-            renderWidget(data);
-            console.log(data);
+    fetch(API_POSTS, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            title,
+            body,
+            userId: 1
         })
-        .catch((error) => {
-            console.error(error);
-        });
-}
+    })
+        .then(res => {
+            if (!res.ok) throw new Error("Помилка!");
+            return res.json();
+        })
+        .then(newPost => {
+            const newPostEl = createPostElement(newPost);
+            postList.prepend(newPostEl);
+            successMessage.textContent = "Пост зроблено успішно";
+            postForm.reset();
 
-getWidget();
+            setTimeout(() => (successMessage.textContent = ""), 0);
+        })
+        .catch(err => console.log("Помилка POST: ", err));
+});
+
+//main
+loadPosts();
